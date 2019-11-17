@@ -21,6 +21,7 @@
 // The function gets called when the window is fully loaded
 window.onload = () => {
     document.getElementById("gofullscreen").onclick = function () {
+        let speed = Number(document.getElementById("speed").value);
         let tilesize = Number(document.getElementById("tilesize").value);
         let scale = tilesize / 40;
         let rowheight = 34 * scale;
@@ -71,13 +72,14 @@ window.onload = () => {
             let context = canvas.getContext("2d");
             context.scale(dpr, dpr);
 
-            run_game(canvas, context, level);
+            run_game(canvas, context, level, speed);
         }, (err) => {
             alert(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
         });
     };
 
     document.getElementById("staticstart").onclick = () => {
+        let speed = Number(document.getElementById("speed").value);
         let tilesize = Number(document.getElementById("tilesize").value);
         let scale = tilesize / 40;
         let rowheight = 34 * scale;
@@ -131,11 +133,11 @@ window.onload = () => {
         let context = canvas.getContext("2d");
         context.scale(dpr, dpr);
 
-        run_game(canvas, context, level);
+        run_game(canvas, context, level, speed);
     };
 }
 
-function run_game(canvas, context, level) {
+function run_game(canvas, context, level, speed) {
     // Timing and frames per second
     var lastframe = 0;
     var fpstime = 0;
@@ -166,7 +168,7 @@ function run_game(canvas, context, level) {
                     x: 0,
                     y: 0,
                     angle: 0,
-                    speed: 1000,
+                    speed: speed,
                     dropspeed: 900,
                     tiletype: 0,
                     visible: false
@@ -364,63 +366,72 @@ function run_game(canvas, context, level) {
     function stateShootBubble(dt) {
         // Bubble is moving
 
-        // Move the bubble in the direction of the mouse
-        player.bubble.x += dt * player.bubble.speed * Math.cos(player.bubble.angle);
-        player.bubble.y -= dt * player.bubble.speed * Math.sin(player.bubble.angle);
+        let dist = dt * player.bubble.speed;
+        let deltax = dist * Math.cos(player.bubble.angle);
+        let deltay = dist * Math.sin(player.bubble.angle);
+        let number_movements = Math.ceil(2 * dist / level.tilesize);
 
-        let rightEdge = level.x + level.width - level.tilesize;
+        for (var t=0; t<number_movements; t++) {
+            // Move the bubble in the direction of the mouse
+            player.bubble.x += deltax / number_movements;
+            player.bubble.y -= deltay / number_movements;
 
-        // Handle left and right collisions with the level
-        if (player.bubble.x <= level.x) {
-            // Left edge
-            player.bubble.angle = Math.PI - player.bubble.angle;
-            player.bubble.x = level.x * 2 - player.bubble.x;
-        } else if (player.bubble.x >= rightEdge) {
-            // Right edge
-            player.bubble.angle = Math.PI - player.bubble.angle;
-            player.bubble.x = rightEdge * 2 - player.bubble.x;
-        }
+            let rightEdge = level.x + level.width - level.tilesize;
 
-        // Collisions with the top of the level
-        if (player.bubble.y <= level.y) {
-            // Top collision
-            player.bubble.y = level.y;
-            snapBubble();
-            return;
-        }
+            // Handle left and right collisions with the level
+            if (player.bubble.x <= level.x) {
+                // Left edge
+                player.bubble.angle = Math.PI - player.bubble.angle;
+                player.bubble.x = level.x * 2 - player.bubble.x;
+            } else if (player.bubble.x >= rightEdge) {
+                // Right edge
+                player.bubble.angle = Math.PI - player.bubble.angle;
+                player.bubble.x = rightEdge * 2 - player.bubble.x;
+            }
 
-        // Collisions with other tiles
-        for (var i=0; i<level.columns; i++) {
-            for (var j=0; j<level.rows; j++) {
-                var tile = level.tiles[i][j];
+            // Collisions with the top of the level
+            if (player.bubble.y <= level.y) {
+                // Top collision
+                let ydelta = level.y - player.bubble.y;
+                player.bubble.x += Math.sin(player.bubble.angle) * Math.cos(player.bubble.angle) / ydelta;
+                player.bubble.y = level.y;
+                snapBubble();
+                return;
+            }
 
-                // Skip empty tiles
-                if (tile.type < 0) {
-                    continue;
-                }
+            // Collisions with other tiles
+            for (var i=0; i<level.columns; i++) {
+                for (var j=0; j<level.rows; j++) {
+                    var tile = level.tiles[i][j];
 
-                // Check for intersections
-                var coord = getTileCoordinate(i, j);
-                if ( // Check if two circles intersect
-                    function circleIntersection(x1, y1, r1, x2, y2, r2) {
-                        // Calculate the distance between the centers
-                        var dx = x1 - x2;
-                        var dy = y1 - y2;
+                    // Skip empty tiles
+                    if (tile.type < 0) {
+                        continue;
+                    }
 
-                        return dx * dx + dy * dy < r1 * r1 + r2 * r2;
-                    }(player.bubble.x + level.tilesize / 2,
-                        player.bubble.y + level.tilesize / 2,
-                        level.radius,
-                        coord.tilex + level.tilesize / 2,
-                        coord.tiley + level.tilesize / 2,
-                        level.radius)) {
+                    // Check for intersections
+                    var coord = getTileCoordinate(i, j);
+                    if ( // Check if two circles intersect
+                        function circleIntersection(x1, y1, r1, x2, y2, r2) {
+                            // Calculate the distance between the centers
+                            var dx = x1 - x2;
+                            var dy = y1 - y2;
 
-                    // Intersection with a level bubble
-                    snapBubble();
-                    return;
+                            return dx * dx + dy * dy < r1 * r1 + r2 * r2;
+                        }(player.bubble.x + level.tilesize / 2,
+                            player.bubble.y + level.tilesize / 2,
+                            level.radius,
+                            coord.tilex + level.tilesize / 2,
+                            coord.tiley + level.tilesize / 2,
+                            level.radius)) {
+
+                        // Intersection with a level bubble
+                        snapBubble();
+                        return;
+                    }
                 }
             }
-        }
+        }        
     }
 
     function stateRemoveCluster(dt) {
