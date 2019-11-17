@@ -369,14 +369,13 @@ function run_game(canvas, context, level, speed) {
         let dist = dt * player.bubble.speed;
         let deltax = dist * Math.cos(player.bubble.angle);
         let deltay = dist * Math.sin(player.bubble.angle);
-        let number_movements = Math.ceil(2 * dist / level.tilesize);
+        let number_movements = Math.ceil(dist / level.radius);
+        let rightEdge = level.x + level.width - level.tilesize;
 
         for (var t=0; t<number_movements; t++) {
             // Move the bubble in the direction of the mouse
             player.bubble.x += deltax / number_movements;
             player.bubble.y -= deltay / number_movements;
-
-            let rightEdge = level.x + level.width - level.tilesize;
 
             // Handle left and right collisions with the level
             if (player.bubble.x <= level.x) {
@@ -398,6 +397,50 @@ function run_game(canvas, context, level, speed) {
                 snapBubble();
                 return;
             }
+
+            let gridpos = getPlayerGridPosition();
+
+            const lookup = [{
+                i: gridpos.x /* minus or plus one? */ ,
+                j: gridpos.y + 1
+            }, {
+                i: gridpos.x /* minus or plus one? */ ,
+                j: gridpos.y + 1
+            }, {
+                i: gridpos.x - 1,
+                j: gridpos.y
+            }, {
+                i: gridpos.x + 1,
+                j: gridpos.y
+            }, {
+                i: gridpos.x /* minus or plus one? */ ,
+                j: gridpos.y - 1
+            }, {
+                i: gridpos.x /* minus or plus one? */ ,
+                j: gridpos.y - 1
+            }];
+            let things = [{
+                v: Math.PI / 4,
+                e: () => {
+                    return [lookup[0], lookup[1], lookup[3], lookup[5]]
+                }
+            }, {
+                v: player.angle,
+                e: () => {
+                    if (player.angle == Math.PI / 2) {
+                        return [lookup[0], lookup[1]];
+                    } else {
+                        return [lookup[0], lookup[1], player.angle < Math.PI / 2 ? lookup[2] : lookup[3]];
+                    }
+                }
+            }, {
+                v: Math.PI * 3 / 4,
+                e: () => {
+                    return [lookup[0], lookup[1], lookup[2], lookup[4]];
+                }
+            }].sort((a, b) => {
+                return a.v - b.v;
+            })[1].e();
 
             // Collisions with other tiles
             for (var i=0; i<level.columns; i++) {
@@ -546,9 +589,7 @@ function run_game(canvas, context, level, speed) {
     // Snap bubble to the grid
     function snapBubble() {
         // Get the grid position
-        var centerx = player.bubble.x + level.tilesize/2;
-        var centery = player.bubble.y + level.tilesize/2;
-        var gridpos = getGridPosition(centerx, centery);
+        var gridpos = getPlayerGridPosition();
 
         // Make sure the grid position is valid
         if (gridpos.x < 0) {
@@ -993,19 +1034,17 @@ function run_game(canvas, context, level, speed) {
     }
 
     // Get the closest grid position
-    function getGridPosition(x, y) {
+    function getPlayerGridPosition() {
+        var x = player.bubble.x + level.tilesize/2;
+        var y = player.bubble.y + level.tilesize/2;
         var gridy = Math.floor((y - level.y) / level.rowheight);
 
+        var xadjust = ((gridy + rowoffset) % 2);
         // Check for offset
-        var xoffset = 0;
-        if ((gridy + rowoffset) % 2) {
-            xoffset = level.tilesize / 2;
-        }
-        var gridx = Math.floor(((x - xoffset) - level.x) / level.tilesize);
+        var gridx = Math.floor((x - xadjust * level.radius - level.x) / level.tilesize);
 
-        return { x: gridx, y: gridy };
+        return { x: gridx, y: gridy, xadjust: xadjust};
     }
-
 
     // Draw the bubble
     function drawBubble(x, y, index) {
